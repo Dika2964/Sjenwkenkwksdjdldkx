@@ -242,6 +242,7 @@ getgenv().PlayMacro = function()
                 end
             end
         end
+        savedFileSuccess = true
         print("[SISTEM] Semua antrean macro telah selesai dijalankan.")
     end)
 end
