@@ -6,6 +6,7 @@ local fileName = namaFile .. ".json"
 local isRecording = false
 local startTime = 0
 local recordedActions = {}
+local savedFileSuccess = false
 
 local function resolveInstance(path)
     if not path then return nil end
@@ -156,6 +157,7 @@ getgenv().RecordMacro = function()
         local jsonData = HttpService:JSONEncode(recordedActions)
         writefile(fileName, jsonData)
         print("[SISTEM] File berhasil disimpan!")
+        savedFileSuccess = true
     end)
 end
 
@@ -234,5 +236,5 @@ while not gamemodeUI.Visible do task.wait(0.1) end
 game:GetService("ReplicatedStorage").Remotes.Events.Gamemode:FireServer(Gamemode)
 task.wait(0.5)
 game:GetService("ReplicatedStorage").Remotes.Events.InitChangeSpeed:FireServer(1)
-while not gameUI.Visible do task.wait(0.1) end
+while not gameUI.Visible and not savedFileSuccess do task.wait(0.1) end
 firesignal(game:GetService("Players").LocalPlayer.PlayerGui.UI.Game.GameOver.Buttons.Replay.Button.Activated)
