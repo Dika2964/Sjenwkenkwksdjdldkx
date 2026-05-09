@@ -1,0 +1,208 @@
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local fileName = namaFile .. ".json"
+local isRecording = false
+local startTime = 0
+local recordedActions = {}
+
+local function resolveInstance(path)
+    if not path then return nil end
+    local parts = string.split(path, ".")
+    local current = game
+    for _, part in ipairs(parts) do
+        if part == "Workspace" then
+            current = workspace
+        else
+            current = current:FindFirstChild(part)
+        end
+        if not current then return nil end
+    end
+    return current
+end
+
+local function serializeArgs(remoteName, args)
+    local serialized = {}
+    if remoteName == "PlaceTower" then
+        local data = args[1]
+        local instPath = data.instance and data.instance:GetFullName() or ""
+        
+        serialized[1] = {
+            instancePath = instPath,
+            position = {X = data.position.X, Y = data.position.Y, Z = data.position.Z},
+            towerID = data.towerID,
+            towerToPlace = data.towerToPlace
+        }
+    else
+        for i, v in ipairs(args) do
+            serialized[i] = v
+        end
+    end
+    return serialized
+end
+
+local function deserializeArgs(remoteName, serialized)
+    local args = {}
+    if remoteName == "PlaceTower" then
+        local data = serialized[1]
+        args[1] = {
+            instance = resolveInstance(data.instancePath),
+            position = Vector3.new(data.position.X, data.position.Y, data.position.Z),
+            towerID = data.towerID,
+            towerToPlace = data.towerToPlace
+        }
+    else
+        for i, v in ipairs(serialized) do
+            args[i] = v
+        end
+    end
+    return args
+end
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if method == "InvokeServer" and isRecording then
+        local name = self.Name
+        if name == "PlaceTower" or name == "SellTower" or name == "UpgradeTower" then
+            task.spawn(function()
+                local success, err = pcall(function()
+                    table.insert(recordedActions, {
+                        Action = name,
+                        Time = tick() - startTime,
+                        Args = serializeArgs(name, args)
+                    })
+                    print("[MENCATAT] " .. name .. " direkam pada waktu: " .. tostring(tick() - startTime))
+                end)
+                
+                if not success then
+                    warn("[ERROR PENCATATAN] Gagal merekam " .. name .. ": " .. tostring(err))
+                end
+            end)
+        end
+    end
+
+    return oldNamecall(self, ...)
+end))
+
+local function getWaveUI()
+    return LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Game"):WaitForChild("Status"):WaitForChild("Info"):WaitForChild("Wave")
+end
+
+local function getGameUI()
+    return LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Game"):WaitForChild("GameOver")
+end
+
+local function getReadyUI()
+    return LocalPlayer.PlayerGui.UI.Ready
+end
+
+local function getGamemodeUI()
+    return LocalPlayer.PlayerGui.UI.Game.Gamemodes
+end
+
+getgenv().RecordMacro = function()
+    task.spawn(function()
+        local waveUI = getWaveUI()
+        local gameOverUI = getGameUI()
+        print("[SISTEM] Menunggu UI Wave muncul untuk mulai merekam...")
+        
+        while not waveUI.Visible do task.wait(0.1) end
+
+        print("[SISTEM] Wave dimulai! Perekaman berjalan...")
+        isRecording = true
+        startTime = tick()
+        recordedActions = {}
+
+        while not gameOverUI.Visible do task.wait(0.1) end
+
+        isRecording = false
+        print("[SISTEM] Wave selesai! Menyimpan data ke " .. fileName)
+        
+        local jsonData = HttpService:JSONEncode(recordedActions)
+        writefile(fileName, jsonData)
+        print("[SISTEM] File berhasil disimpan!")
+    end)
+end
+
+getgenv().PlayMacro = function()
+    if not isfile(fileName) then 
+        warn("[ERROR] File " .. fileName .. " tidak ditemukan! Silakan record dulu.")
+        return 
+    end
+
+    task.spawn(function()
+        local data = HttpService:JSONDecode(readfile(fileName))
+        local waveUI = getWaveUI()
+        
+        print("[SISTEM] Menunggu UI Wave muncul untuk menjalankan macro...")
+        
+        while not waveUI.Visible do task.wait(0.1) end
+
+        print("[SISTEM] Wave dimulai! Menjalankan remote yang dicatat...")
+        local playStartTime = tick()
+
+        for _, action in ipairs(data) do
+            local targetTime = action.Time
+            local currentTime = tick() - playStartTime
+
+            if currentTime < targetTime then
+                task.wait(targetTime - currentTime)
+            end
+
+            local remote = ReplicatedStorage.Remotes.Functions:FindFirstChild(action.Action)
+            if remote then
+                local args = deserializeArgs(action.Action, action.Args)
+
+                if action.Action == "PlaceTower" then
+                    task.spawn(function()
+                        local success = false
+                        repeat
+                            local callSuccess, result = pcall(function()
+                                return remote:InvokeServer(unpack(args))
+                            end)
+                            
+                            if callSuccess and result ~= false then
+                                success = true
+                                print("[PLAYBACK] PlaceTower Berhasil!")
+                            else
+                                warn("[PLAYBACK] PlaceTower gagal! Mengulang dalam 3 detik...")
+                                task.wait(3)
+                            end
+                        until success
+                    end)
+                else
+                    task.spawn(function()
+                        remote:InvokeServer(unpack(args))
+                        print("[PLAYBACK] " .. action.Action .. " dijalankan.")
+                    end)
+                end
+            end
+        end
+        print("[SISTEM] Semua antrean macro telah selesai dijalankan.")
+    end)
+end
+
+print("Script siap! Gunakan perintah berikut di executor kamu:")
+print("1. Jalankan `RecordMacro()` untuk mulai mode rekam.")
+print("2. Jalankan `PlayMacro()` untuk mengulang dari file.")
+if Runn == "PlayMacro" then
+    PlayMacro()
+elseif Runn == "RecordMacro" then
+    RecordMacro()
+end
+local gameUI = getGameUI()
+local readyUI = getReadyUI()
+local gamemodeUI = getGamemodeUI()
+
+while not readyUI.Visible do task.wait(0.1) end
+game:GetService("ReplicatedStorage").Remotes.Events.Ready:FireServer()
+while not gamemodeUI.Visible do task.wait(0.1) end
+game:GetService("ReplicatedStorage").Remotes.Events.Gamemode:FireServer(Gamemode)
+task.wait(0.5)
+game:GetService("ReplicatedStorage").Remotes.Events.InitChangeSpeed:FireServer(1)
+while not gameUI.Visible do task.wait(0.1) end
+firesignal(game:GetService("Players").LocalPlayer.PlayerGui.UI.Game.GameOver.Buttons.Replay.Button.Activated)
