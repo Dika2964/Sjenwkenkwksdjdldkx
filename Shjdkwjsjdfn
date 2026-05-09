@@ -1,15 +1,22 @@
+repeat task.wait() until game:IsLoaded()
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
-local fileName = namaFile .. ".json"
+
+-- Mengambil nama file dengan aman, mencegah error jika 'namaFile' kosong
+local validNamaFile = getgenv().namaFile or "DefaultMacro"
+local fileName = validNamaFile .. ".json"
+
 local isRecording = false
 local startTime = 0
 local recordedActions = {}
 local savedFileSuccess = false
 
+getgenv().Metode = getgenv().Metode or "Time"
+
 local function resolveInstance(path)
-    if not path then return nil end
+    if not path or path == "" then return nil end
     local parts = string.split(path, ".")
     local current = game
     for _, part in ipairs(parts) do
@@ -93,8 +100,6 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             local result = {oldNamecall(self, ...)}
             local serverResponse = result[1]
 
-            warn("[DEBUG SERVER] " .. name .. " membalas tipe: " .. type(serverResponse) .. " | Isi: " .. tostring(serverResponse))
-
             if isActionValid(serverResponse) then
                 task.spawn(function()
                     local success, err = pcall(function()
@@ -109,8 +114,6 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
                         warn("[ERROR PENCATATAN] Gagal merekam: " .. tostring(err))
                     end
                 end)
-            else
-                warn("[MENGABAIKAN] " .. name .. " ditolak (Palsu/Spam/Error/Uang kurang).")
             end
 
             return unpack(result)
@@ -120,6 +123,7 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end))
 
+-- PERBAIKAN: Gunakan WaitForChild untuk menghindari error saat UI belum Load
 local function getWaveUI()
     return LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Game"):WaitForChild("Status"):WaitForChild("Info"):WaitForChild("Wave")
 end
@@ -157,7 +161,6 @@ getgenv().RecordMacro = function()
         local jsonData = HttpService:JSONEncode(recordedActions)
         writefile(fileName, jsonData)
         print("[SISTEM] File berhasil disimpan!")
-        task.wait(0.7)
         savedFileSuccess = true
     end)
 end
@@ -181,27 +184,32 @@ getgenv().PlayMacro = function()
         local playStartTime = tick()
 
         for _, action in ipairs(data) do
-            local remote = ReplicatedStorage.Remotes.Functions:FindFirstChild(action.Action)
+            local remote = ReplicatedStorage.Remotes.Functions:WaitForChild(action.Action, 10)
             if remote then
-                local args = deserializeArgs(action.Action, action.Args)
-
                 if mode == "Instant" then
                     local success = false
                     repeat
-                        local callSuccess, result = pcall(function()
-                            return remote:InvokeServer(unpack(args))
-                        end)
+                        -- PERBAIKAN: Resolve argument di dalam loop agar terus mencoba saat Map lambat load
+                        local args = deserializeArgs(action.Action, action.Args)
                         
-                        if callSuccess and isActionValid(result) then
-                            success = true
-                            print("[PLAYBACK INSTANT] " .. action.Action .. " Berhasil divalidasi!")
+                        -- Cek apakah instance map sudah termuat (khusus PlaceTower)
+                        if action.Action == "PlaceTower" and args[1] and args[1].instance == nil then
+                            task.wait(0.5) -- Tunggu map termuat
                         else
-                            -- Tunggu sebentar lalu coba lagi (nunggu uang nambah dari game)
-                            task.wait(0.1)
+                            local callSuccess, result = pcall(function()
+                                return remote:InvokeServer(unpack(args))
+                            end)
+                            
+                            if callSuccess and isActionValid(result) then
+                                success = true
+                                print("[PLAYBACK INSTANT] " .. action.Action .. " Berhasil!")
+                            else
+                                task.wait(0.1)
+                            end
                         end
                     until success
-
                 else
+                    -- METODE TIME
                     local targetTime = action.Time
                     local currentTime = tick() - playStartTime
 
@@ -209,19 +217,25 @@ getgenv().PlayMacro = function()
                         task.wait(targetTime - currentTime)
                     end
 
-                    -- Gunakan task.spawn agar penundaan (nunggu uang) tidak mengganggu timer remote lain
                     task.spawn(function()
                         local success = false
                         repeat
-                            local callSuccess, result = pcall(function()
-                                return remote:InvokeServer(unpack(args))
-                            end)
+                            -- PERBAIKAN: Sama, ditaruh di dalam loop untuk Time mode
+                            local args = deserializeArgs(action.Action, action.Args)
                             
-                            if callSuccess and isActionValid(result) then
-                                success = true
-                                print("[PLAYBACK TIME] " .. action.Action .. " Berhasil!")
+                            if action.Action == "PlaceTower" and args[1] and args[1].instance == nil then
+                                task.wait(0.5) -- Tunggu map
                             else
-                                task.wait(0.1)
+                                local callSuccess, result = pcall(function()
+                                    return remote:InvokeServer(unpack(args))
+                                end)
+                                
+                                if callSuccess and isActionValid(result) then
+                                    success = true
+                                    print("[PLAYBACK TIME] " .. action.Action .. " Berhasil!")
+                                else
+                                    task.wait(0.1)
+                                end
                             end
                         until success
                     end)
@@ -232,21 +246,32 @@ getgenv().PlayMacro = function()
     end)
 end
 
-if Runn == "PlayMacro" then
+local validRunn = getgenv().Runn or ""
+if validRunn == "PlayMacro" then
     PlayMacro()
-elseif Runn == "RecordMacro" then
+elseif validRunn == "RecordMacro" then
     RecordMacro()
 end
 
-local gameUI = getGameUI()
-local readyUI = getReadyUI()
-local gamemodeUI = getGamemodeUI()
+-- Menjalankan alur permainan otomatis
+task.spawn(function()
+    local gameUI = getGameUI()
+    local readyUI = getReadyUI()
+    local gamemodeUI = getGamemodeUI()
 
-while not readyUI.Visible do task.wait(0.1) end
-game:GetService("ReplicatedStorage").Remotes.Events.Ready:FireServer()
-while not gamemodeUI.Visible do task.wait(0.1) end
-game:GetService("ReplicatedStorage").Remotes.Events.Gamemode:FireServer(Gamemode)
-task.wait(0.5)
-game:GetService("ReplicatedStorage").Remotes.Events.InitChangeSpeed:FireServer(1)
-while not gameUI.Visible and not savedFileSuccess do task.wait(0.1) end
-firesignal(game:GetService("Players").LocalPlayer.PlayerGui.UI.Game.GameOver.Buttons.Replay.Button.Activated)
+    while not readyUI.Visible do task.wait(0.1) end
+    game:GetService("ReplicatedStorage").Remotes.Events.Ready:FireServer()
+    
+    while not gamemodeUI.Visible do task.wait(0.1) end
+    local validGamemode = getgenv().Gamemode or "Normal" -- Cegah error jika Gamemode belum di-set
+    game:GetService("ReplicatedStorage").Remotes.Events.Gamemode:FireServer(validGamemode)
+    
+    task.wait(0.5)
+    game:GetService("ReplicatedStorage").Remotes.Events.InitChangeSpeed:FireServer(1)
+    
+    while not gameUI.Visible and not savedFileSuccess do task.wait(0.1) end
+    
+    -- Tunggu tombol Replay muncul sebelum diklik
+    local replayBtn = LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Game"):WaitForChild("GameOver"):WaitForChild("Buttons"):WaitForChild("Replay"):WaitForChild("Button")
+    firesignal(replayBtn.Activated)
+end)
