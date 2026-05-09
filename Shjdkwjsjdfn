@@ -202,7 +202,7 @@ getgenv().PlayMacro = function()
                                 print("[PLAYBACK] PlaceTower Berhasil!")
                             else
                                 warn("[PLAYBACK] PlaceTower ditolak server (nunggu uang/delay)! Mengulang 3 detik...")
-                                task.wait(3)
+                                task.wait(0.1)
                             end
                         until success
                     end)
