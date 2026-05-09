@@ -13,7 +13,7 @@ local startTime = 0
 local recordedActions = {}
 local savedFileSuccess = false
 
-getgenv().Metode = getgenv().Metode or "Time"
+getgenv().Metode = getgenv().Metode or "Instant"
 
 local function resolveInstance(path)
     if not path or path == "" then return nil end
