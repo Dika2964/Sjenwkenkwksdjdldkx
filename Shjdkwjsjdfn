@@ -157,6 +157,7 @@ getgenv().RecordMacro = function()
         local jsonData = HttpService:JSONEncode(recordedActions)
         writefile(fileName, jsonData)
         print("[SISTEM] File berhasil disimpan!")
+        task.wait(0.7)
         savedFileSuccess = true
     end)
 end
