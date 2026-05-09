@@ -175,22 +175,40 @@ getgenv().PlayMacro = function()
         
         while not waveUI.Visible do task.wait(0.1) end
 
-        print("[SISTEM] Wave dimulai! Menjalankan remote yang dicatat...")
+        local mode = getgenv().Metode
+        print("[SISTEM] Wave dimulai! Menjalankan macro dengan metode: " .. mode)
         local playStartTime = tick()
 
         for _, action in ipairs(data) do
-            local targetTime = action.Time
-            local currentTime = tick() - playStartTime
-
-            if currentTime < targetTime then
-                task.wait(targetTime - currentTime)
-            end
-
             local remote = ReplicatedStorage.Remotes.Functions:FindFirstChild(action.Action)
             if remote then
                 local args = deserializeArgs(action.Action, action.Args)
 
-                if action.Action == "PlaceTower" then
+                if mode == "Instant" then
+                    local success = false
+                    repeat
+                        local callSuccess, result = pcall(function()
+                            return remote:InvokeServer(unpack(args))
+                        end)
+                        
+                        if callSuccess and isActionValid(result) then
+                            success = true
+                            print("[PLAYBACK INSTANT] " .. action.Action .. " Berhasil divalidasi!")
+                        else
+                            -- Tunggu sebentar lalu coba lagi (nunggu uang nambah dari game)
+                            task.wait(0.1)
+                        end
+                    until success
+
+                else
+                    local targetTime = action.Time
+                    local currentTime = tick() - playStartTime
+
+                    if currentTime < targetTime then
+                        task.wait(targetTime - currentTime)
+                    end
+
+                    -- Gunakan task.spawn agar penundaan (nunggu uang) tidak mengganggu timer remote lain
                     task.spawn(function()
                         local success = false
                         repeat
@@ -198,20 +216,13 @@ getgenv().PlayMacro = function()
                                 return remote:InvokeServer(unpack(args))
                             end)
                             
-                            -- Pengecekan Playback juga pakai Smart Validator
                             if callSuccess and isActionValid(result) then
                                 success = true
-                                print("[PLAYBACK] PlaceTower Berhasil!")
+                                print("[PLAYBACK TIME] " .. action.Action .. " Berhasil!")
                             else
-                                warn("[PLAYBACK] PlaceTower ditolak server (nunggu uang/delay)! Mengulang 3 detik...")
                                 task.wait(0.1)
                             end
                         until success
-                    end)
-                else
-                    task.spawn(function()
-                        remote:InvokeServer(unpack(args))
-                        print("[PLAYBACK] " .. action.Action .. " dijalankan.")
                     end)
                 end
             end
