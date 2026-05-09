@@ -129,11 +129,11 @@ local function getGameUI()
 end
 
 local function getReadyUI()
-    return LocalPlayer.PlayerGui.UI.Ready
+    return LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Ready")
 end
 
 local function getGamemodeUI()
-    return LocalPlayer.PlayerGui.UI.Game.Gamemodes
+    return LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Game"):WaitForChild("Gamemodes")
 end
 
 getgenv().RecordMacro = function()
