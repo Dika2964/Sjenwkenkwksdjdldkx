@@ -60,6 +60,25 @@ local function deserializeArgs(remoteName, serialized)
     return args
 end
 
+local function isActionValid(response)
+    if response == nil or response == false then return false end
+    
+    if type(response) == "string" then
+        local text = string.lower(response)
+        if text == "" or string.find(text, "error") or string.find(text, "enough") or string.find(text, "limit") or string.find(text, "invalid") then
+            return false
+        end
+    end
+    
+    if type(response) == "table" then
+        if response.success == false or response.Success == false then
+            return false
+        end
+    end
+    
+    return true
+end
+
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
@@ -68,20 +87,32 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     if method == "InvokeServer" and isRecording then
         local name = self.Name
         if name == "PlaceTower" or name == "SellTower" or name == "UpgradeTower" then
-            task.spawn(function()
-                local success, err = pcall(function()
-                    table.insert(recordedActions, {
-                        Action = name,
-                        Time = tick() - startTime,
-                        Args = serializeArgs(name, args)
-                    })
-                    print("[MENCATAT] " .. name .. " direkam pada waktu: " .. tostring(tick() - startTime))
+            local actionTime = tick() - startTime
+            
+            local result = {oldNamecall(self, ...)}
+            local serverResponse = result[1]
+
+            warn("[DEBUG SERVER] " .. name .. " membalas tipe: " .. type(serverResponse) .. " | Isi: " .. tostring(serverResponse))
+
+            if isActionValid(serverResponse) then
+                task.spawn(function()
+                    local success, err = pcall(function()
+                        table.insert(recordedActions, {
+                            Action = name,
+                            Time = actionTime,
+                            Args = serializeArgs(name, args)
+                        })
+                        print("[MENCATAT] " .. name .. " sukses, direkam!")
+                    end)
+                    if not success then
+                        warn("[ERROR PENCATATAN] Gagal merekam: " .. tostring(err))
+                    end
                 end)
-                
-                if not success then
-                    warn("[ERROR PENCATATAN] Gagal merekam " .. name .. ": " .. tostring(err))
-                end
-            end)
+            else
+                warn("[MENGABAIKAN] " .. name .. " ditolak (Palsu/Spam/Error/Uang kurang).")
+            end
+
+            return unpack(result)
         end
     end
 
@@ -165,11 +196,12 @@ getgenv().PlayMacro = function()
                                 return remote:InvokeServer(unpack(args))
                             end)
                             
-                            if callSuccess and result ~= false then
+                            -- Pengecekan Playback juga pakai Smart Validator
+                            if callSuccess and isActionValid(result) then
                                 success = true
                                 print("[PLAYBACK] PlaceTower Berhasil!")
                             else
-                                warn("[PLAYBACK] PlaceTower gagal! Mengulang dalam 3 detik...")
+                                warn("[PLAYBACK] PlaceTower ditolak server (nunggu uang/delay)! Mengulang 3 detik...")
                                 task.wait(3)
                             end
                         until success
@@ -186,14 +218,12 @@ getgenv().PlayMacro = function()
     end)
 end
 
-print("Script siap! Gunakan perintah berikut di executor kamu:")
-print("1. Jalankan `RecordMacro()` untuk mulai mode rekam.")
-print("2. Jalankan `PlayMacro()` untuk mengulang dari file.")
 if Runn == "PlayMacro" then
     PlayMacro()
 elseif Runn == "RecordMacro" then
     RecordMacro()
 end
+
 local gameUI = getGameUI()
 local readyUI = getReadyUI()
 local gamemodeUI = getGamemodeUI()
