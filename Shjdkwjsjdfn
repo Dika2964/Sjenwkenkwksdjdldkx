@@ -4,16 +4,16 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- Mengambil nama file dengan aman, mencegah error jika 'namaFile' kosong
-local validNamaFile = getgenv().namaFile or "DefaultMacro"
-local fileName = validNamaFile .. ".json"
+getgenv().Gamemode = getgenv().Gamemode or "Hard" --- Easy/Medium/Hard/Extreme
+getgenv().Runn = getgenv().Runn or "PlayMacro" --- RecordMacro/PlayMacro
+getgenv().namaFile = getgenv().namaFile or "Solo" --- Bebas
+getgenv().Metode = getgenv().Metode or "Instant"
+local fileName = namaFile .. ".json"
 
 local isRecording = false
 local startTime = 0
 local recordedActions = {}
 local savedFileSuccess = false
-
-getgenv().Metode = getgenv().Metode or "Instant"
 
 local function resolveInstance(path)
     if not path or path == "" then return nil end
@@ -202,7 +202,6 @@ getgenv().PlayMacro = function()
                             
                             if callSuccess and isActionValid(result) then
                                 success = true
-                                print("[PLAYBACK INSTANT] " .. action.Action .. " Berhasil!")
                             else
                                 task.wait(0.1)
                             end
@@ -253,7 +252,6 @@ elseif validRunn == "RecordMacro" then
     RecordMacro()
 end
 
--- Menjalankan alur permainan otomatis
 task.spawn(function()
     local gameUI = getGameUI()
     local readyUI = getReadyUI()
@@ -267,11 +265,18 @@ task.spawn(function()
     game:GetService("ReplicatedStorage").Remotes.Events.Gamemode:FireServer(validGamemode)
     
     task.wait(0.5)
-    game:GetService("ReplicatedStorage").Remotes.Events.InitChangeSpeed:FireServer(1)
-    
+    game:GetService("ReplicatedStorage").Remotes.Events.InitChangeSpeed:FireServer(2)
     while not gameUI.Visible and not savedFileSuccess do task.wait(0.1) end
     
-    -- Tunggu tombol Replay muncul sebelum diklik
     local replayBtn = LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Game"):WaitForChild("GameOver"):WaitForChild("Buttons"):WaitForChild("Replay"):WaitForChild("Button")
-    firesignal(replayBtn.Activated)
+    while task.wait(0.2) do firesignal(replayBtn.Activated) end
+end)
+
+local VirtualUser = game:GetService("VirtualUser")
+local Players = game:GetService("Players")
+
+Players.LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+    print("Anti-AFK diaktifkan, mencegah disconnect.")
 end)
