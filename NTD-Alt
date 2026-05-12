@@ -9,7 +9,7 @@ getgenv().Gamemode = getgenv().Gamemode or "Hard" --- Easy/Medium/Hard/Extreme
 getgenv().Runn = getgenv().Runn or "PlayMacro" --- RecordMacro/PlayMacro
 getgenv().namaFile = getgenv().namaFile or "Solo" --- Bebas
 getgenv().Metode = getgenv().Metode or "Instant"
-getgenv().Gamespeed = 3
+getgenv().Gamespeed = getgenv().Gamespeed or 2
 local fileName = namaFile .. ".json"
 
 local isRecording = false
@@ -268,7 +268,6 @@ task.spawn(function()
     
     task.wait(0.5)
     game:GetService("ReplicatedStorage").Remotes.Events.InitChangeSpeed:FireServer(Gamespeed)
-    game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(28.306339263916016, 3.009999990463257, -14.880305290222168))
     while not gameUI.Visible and not savedFileSuccess do task.wait(0.1) end
     
     local replayBtn = LocalPlayer.PlayerGui:WaitForChild("UI"):WaitForChild("Game"):WaitForChild("GameOver"):WaitForChild("Buttons"):WaitForChild("Replay"):WaitForChild("Button")
