@@ -1,0 +1,1740 @@
+if game.PlaceId ~= 123516946198836 and game.PlaceId ~= 108533757090220 then
+    print("[DEBUG] GOT FILTER GAME PLACEID")
+    return
+end
+
+if alreadyRunGoaHub then warn("Already Run GOA HUB") end
+getgenv().alreadyRunGoaHub = true
+repeat 
+    task.wait() 
+    print("[DEBUG] WAITING GAME FULLY LOADED")
+until game:IsLoaded()
+
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer or game.Players.LocalPlayer
+local PlayerGui = LocalPlayer.PlayerGui
+local LogicHolder = PlayerGui:FindFirstChild("LogicHolder")
+local ClientLoader = LogicHolder:FindFirstChild("ClientLoader")
+local SharedConfig = ClientLoader:FindFirstChild("SharedConfig")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local PathfindingService = game:GetService("PathfindingService")
+local RemoteFunctions = ReplicatedStorage:FindFirstChild("RemoteFunctions")
+local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+local GameGui = LocalPlayer.PlayerGui:FindFirstChild("GameGui")
+local Screen = GameGui:FindFirstChild("Screen")
+local Middle = Screen:FindFirstChild("Middle")
+local MacroFileName = "Default.json"
+local MacroPath = "GoaHub/GTD/Macro/"
+local InstantMode = true
+local GameSpeed = 2
+local Difficulty = "dif_apocalpyse"
+local targetSkip = {}
+local unitBasePath
+local WEBHOOK_URL
+local selectedBox = "ub_classic"
+pcall(function()
+    unitBasePath = SharedConfig.ItemData.Units.Behaviors.unit_base
+end)
+
+local macroToggle = {
+    Play = false,
+    Recording = false,
+}
+
+local gameToggle = {
+    Difficulty = false,
+    Speed = false,
+    Skip = false,
+    Restart = false,
+    LuckyBlock = false,
+    BuyUnitBox = false,
+}
+
+local lobbyToggle = {
+    Summon = false,
+    Collect = false,
+    Delete = false,
+    Quest = false,
+    Merchant = false,
+}
+
+local otherToggle = {
+    AntiAfk = false,
+    Webhook = false,
+}
+
+local macroStatus
+local repo = "https://raw.githubusercontent.com/Dika2964/Library/refs/heads/main/Obsidian/"
+local LibraryNotify = loadstring(game:HttpGet(repo .. "Library.lua%20(4).txt"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dika2964/Main/refs/heads/main/LibraryV3.lua.txt"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dika2964/Main/refs/heads/main/SaveManagerV3.lua.txt"))()
+local Options = Library.Options
+local Toggles = Library.Toggles
+local Window = Library:CreateWindow({
+    Title = "",
+    Icon = "121794676391296",
+    Footer = "v0.1",
+    Position = UDim2.fromOffset(6, 6),
+    Size = UDim2.fromOffset(720, 600),
+    Center = true,
+    AutoShow = false,
+    Resizable = true,
+    SidebarCompacted = true,
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+    TabWidth = 10,
+})
+
+local Tabs = {
+    Main = Window:AddTab("", "house"),
+    Settings = Window:AddTab("", "settings"),
+}
+
+local Macro = Tabs.Main:AddLeftGroupbox("Macro")
+local Utility = Tabs.Main:AddRightGroupbox("Utility", "wrench")
+local tabboxUtility = Utility:AddTabbox()
+local Game = tabboxUtility:AddTab(" ", "play")
+local Lobby = tabboxUtility:AddTab(" ", "dices")
+local Event = tabboxUtility:AddTab(" ", "party-popper")
+local tabWebhook = Tabs.Main:AddLeftGroupbox("Webhook", "webhook")
+
+local functions = {}
+
+functions.getMacroFiles = function()
+    local macros = {}
+    local path = "GoaHub/GTD/Macro/"
+    
+    if not isfolder("GoaHub") then makefolder("GoaHub") end
+    if not isfolder(path) then makefolder(path) end
+    
+    for _, file in ipairs(listfiles(path)) do
+        local teksKotor = string.match(file, "[^/\\]+$")
+        local fileNameMacro = string.match(teksKotor, "^[^.]+")
+        local test = string.match(file, "^[^.]+")
+        if fileNameMacro then
+            print("Teks Kotor : " .. teksKotor)
+            print("Teks tanpa .json : " .. fileNameMacro)
+            print("Teks tanpa .json tanpa convert teksKotor : " .. test)
+            table.insert(macros, tostring(fileNameMacro))
+        end
+    end
+    
+    return macros
+end
+
+functions.getWaves = function()
+    local waves = {}
+    local loop = 1
+    while loop <= 50 do
+        table.insert(waves, loop)
+        loop = loop + 1
+    end
+    return waves
+end
+
+functions.getBoxes = function()
+    local Box = SharedConfig.ItemData.Units.Boxes
+    local result = {}
+    for i, v in pairs(Box:GetChildren()) do
+        if v:IsA("ModuleScript") then
+            local text = string.split(v.Name, "_") --- contoh ub_classic 
+            if text[2] then
+                table.insert(result, text[2])
+            end
+        end
+    end
+    return result
+end
+
+Macro:AddDropdown('ListMacro', {
+    Text = 'List Macro',
+    Values = functions.getMacroFiles(),
+    Default = 0,
+    Multi = false,
+    MaxVisibleDropdownItems = 5,
+    Callback = function(Value)
+        MacroFileName = Value .. ".json"
+    end
+})
+
+Macro:AddButton({
+    Text = 'Delete Macro',
+    Callback = function()
+        if MacroFileName and MacroFileName ~= "" then
+            local path = "GoaHub/GTD/Macro/" .. MacroFileName
+            
+            if isfile(path) then
+                LibraryNotify:Notify({
+                    Title = "Success",
+                    Description = "Delete " .. string.match(MacroFileName, "^[^.]+") .. " on List",
+                    Time = 5,
+                })
+                delfile(path)
+                Options.ListMacro:SetValues(functions.getMacroFiles())
+            else
+                print("Error: File " .. string.match(MacroFileName, "^[^.]+") .. " tidak ditemukan di sistem.")
+            end
+        else
+            print("Pilih macro di Dropdown terlebih dahulu.")
+        end
+    end
+})
+
+Macro:AddInput('MacroInput', {
+    Text = 'Name Macro',
+    Default = '',
+    Placeholder = 'Example : Default',
+    Numeric = false,
+    ClearTextOnFocus = false,
+})
+
+Macro:AddButton({
+    Text = 'Add New Macro',
+    Callback = function()
+        local newMacro = Options.MacroInput.Value
+        
+        if newMacro and newMacro ~= "" then
+            newMacro = newMacro .. ".json"
+            local path = "GoaHub/GTD/Macro/"
+            local fullPath = path .. newMacro
+            if isfile(fullPath) then 
+                LibraryNotify:Notify({
+                    Title = "Failed",
+                    Description = "Macro already on List",
+                    Time = 5,
+                })
+                return
+            end
+            writefile(fullPath, newMacro)
+            
+            Options.ListMacro:SetValues(functions.getMacroFiles())
+            
+            Options.MacroInput:SetValue("")
+            
+            LibraryNotify:Notify({
+                Title = "Success",
+                Description = "Add " .. string.match(newMacro, "^[^.]+") .. " on List",
+                Time = 5,
+            })
+        else
+            LibraryNotify:Notify({
+                Title = "Failed",
+                Description = "Please fill the name macro",
+                Time = 5,
+            })
+        end
+    end
+})
+
+Macro:AddDropdown('MethodMacro', {
+    Text = 'Method to Play Macro',
+    Values = {"Instant", "Time"},
+    Default = 1,
+    Multi = false,
+    MaxVisibleDropdownItems = 5,
+    Callback = function(Value)
+        if Value == "Instant" then
+            InstantMode = true
+        else
+            InstantMode = false
+        end
+    end
+})
+
+macroStatus = Macro:AddLabel("MacroStatus", {
+    Text = "Status : Idle",
+    DoesWrap = true,
+})
+
+Macro:AddToggle('MacroRecord', {
+    Text = 'Record Macro',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if Options.ListMacro.Value and Options.ListMacro.Value ~= "" then
+                if not functions.StartRecording then
+                    repeat task.wait() until functions.StartRecording
+                end
+                task.wait(0.1)
+                functions.StartRecording(Value)
+            else
+                LibraryNotify:Notify({
+                    Title = "Failed Recoding",
+                    Description = "Please select Macro first",
+                    Time = 3,
+                })
+            end
+        end)
+    end
+})
+
+Macro:AddToggle('MacroPlay', {
+    Text = 'Play Macro',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            macroStatus:SetText("Status : Playing Macro ")
+            if not functions.PlayMacro then
+                repeat task.wait() until functions.PlayMacro
+            end
+            task.wait(0.1)
+            functions.PlayMacro(Value)
+        end)
+    end
+})
+
+
+Game:AddDropdown('GameSpeed', {
+    Text = 'Game Speed',
+    Values = {1, 2, 3},
+    Default = 2,
+    Multi = false,
+    MaxVisibleDropdownItems = 5,
+    Callback = function(Value)
+        GameSpeed = Value
+    end
+})
+
+Game:AddToggle('SetGameSpeed', {
+    Text = 'Auto Set Game Speed',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.AutoSetSpeed then
+                repeat task.wait() until functions.AutoSetSpeed
+            end
+            task.wait(0.1)
+            functions.AutoSetSpeed(Value)
+        end)
+    end
+})
+
+Game:AddDropdown('SelectDifficulty', {
+    Text = 'Difficulty',
+    Values = {"Easy", "Normal", "Hard", "Insane", "Impossible", "Apocalypse", "Aqua", "Hell"},
+    Default = 5,
+    Multi = false,
+    MaxVisibleDropdownItems = 3,
+    Callback = function(Value)
+        Difficulty = "dif_" .. string.lower(Value)
+        print(Difficulty)
+    end
+})
+
+Game:AddToggle('SetDifficulty', {
+    Text = 'Auto Set Difficulty',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.AutoSetDifficulty then
+                repeat task.wait() until functions.AutoSetDifficulty
+            end
+            task.wait(0.1)
+            functions.AutoSetDifficulty(Value)
+        end)
+    end
+})
+
+Game:AddToggle('AutoRestart', {
+    Text = 'Auto Restart',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.AutoRestart then
+                repeat task.wait() until functions.AutoRestart
+            end
+            task.wait(0.1)
+            functions.AutoRestart(Value)
+        end)
+    end
+})
+
+Game:AddDropdown('Difficulty', {
+    Text = 'Waves',
+    Values = functions.getWaves(),
+    Default = {},
+    Multi = true,
+    MaxVisibleDropdownItems = 3,
+    Callback = function(Value)
+        targetSkip = {}
+        for i, v in next, Value do
+            if v then
+                targetSkip[i] = true
+            end
+        end
+    end
+})
+
+Game:AddToggle('SkipWave', {
+    Text = 'Auto Skip Wave',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.AutoSkipWave then
+                repeat task.wait() until functions.AutoSkipWave
+            end
+            task.wait(0.1)
+            functions.AutoSkipWave(Value)
+        end)
+    end
+})
+
+Lobby:AddDropdown('SelectBoxes', {
+    Text = 'Boxes',
+    Values = functions.getBoxes(),
+    Default = 5,
+    Multi = false,
+    MaxVisibleDropdownItems = 3,
+    Callback = function(Value)
+        selectedBox = "ub_" .. string.lower(Value)
+    end
+})
+
+Lobby:AddToggle('AutoBuyUnitBox', {
+    Text = 'Auto Gacha Crate',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.AutoGachaCrate then
+                repeat task.wait() until functions.AutoGachaCrate
+            end
+            task.wait(0.1)
+            functions.AutoGachaCrate(Value)
+        end)
+    end
+})
+
+Event:AddToggle('AutoCollectLuckyBlock', {
+    Text = 'Auto Collect Lucky Block',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.AutoCollectLuckyBlock then
+                repeat task.wait() until functions.AutoCollectLuckyBlock
+            end
+            task.wait(0.1)
+            functions.AutoCollectLuckyBlock(Value)
+        end)
+    end
+})
+
+
+
+tabWebhook:AddInput('WebhokUrl', {
+    Text = 'Webhook URL',
+    Default = '',
+    Placeholder = 'Type here...',
+    Numeric = false,
+    Finished = false,
+    ClearTextOnFocus = true,
+    Callback = function(Value)
+        WEBHOOK_URL = Value
+    end
+})
+
+tabWebhook:AddToggle('Active Webhook', {
+    Text = 'Active Webhook',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.Webhook then
+                repeat task.wait(0.1) until functions.Webhook
+            end
+            task.wait(0.1)
+            functions.Webhook(Value)
+        end)
+    end
+})
+
+local Other = Tabs.Settings:AddLeftGroupbox("Utility")
+Other:AddToggle('AntiAfk', {
+    Text = 'Anti Afk',
+    Default = false,
+    Risky = false,
+    Callback = function(Value)
+        task.spawn(function()
+            if not functions.AntiAfk then
+                repeat task.wait(0.1) until functions.AntiAfk
+            end
+            task.wait(0.1)
+            functions.AntiAfk(Value)
+        end)
+    end
+})
+
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+
+SaveManager:SetFolder("GoaHub/GTD")
+SaveManager:BuildConfigSection(Tabs.Settings)
+SaveManager:LoadAutoloadConfig()
+
+Library:SetFont(Enum.Font.GothamBold)
+
+functions.AutoGachaCrate = function(bool)
+    gameToggle.BuyUnitBox = bool
+    if not bool then return end
+    while gameToggle.BuyUnitBox do
+        task.wait(0.1)
+        RemoteFunctions.BuyUnitBox(selectedBox, 10)
+    end
+end
+
+functions.AutoCollectLuckyBlock = function(bool)
+    gameToggle.LuckyBlock = bool
+    if not bool then return end
+    local remote = RemoteFunctions.CollectCollectable
+    local blacklistedIds = {}
+    local function Collect(collectable)
+        local collectableId = collectable:GetAttribute("ID")
+        
+        if collectableId and not blacklistedIds[collectableId] then
+            local success, isCollected = pcall(function()
+                return remote:InvokeServer(collectableId)
+            end)
+            if success then
+                if isCollected == false then
+                    warn("Server menolak pengambilan item ID: " .. tostring(collectableId) .. " (Masuk ke Blacklist)")
+                    blacklistedIds[collectableId] = true
+                elseif isCollected == true then
+                    print("Berhasil mengumpulkan item dengan ID:", collectableId)
+                end
+            else
+                warn("Terjadi error saat mencoba mengambil item ID:", collectableId)
+            end
+        end
+    end
+    task.spawn(function()
+        for _, existingCollectable in pairs(CollectionService:GetTagged("Collectables_collectable")) do
+            Collect(existingCollectable)
+        end
+        CollectionService:GetInstanceAddedSignal("Collectables_collectable"):Connect(function(newCollectable)
+            Collect(newCollectable)
+        end)
+    end)
+end
+
+functions.Webhook = function(bool)
+    otherToggle.Webhook = bool
+    if not bool then return end
+    print("[DEBUG] ACTIVED WEBHOOK")
+    local startTimeClock = os.time()
+    local remoteTarget = RemoteEvents:WaitForChild("StopDifficultyVote")
+    local con = remoteTarget.OnClientEvent:Connect(function()
+        startTimeClock = os.time()
+        if not otherToggle.Webhook then
+            con:Disconnect()
+            con = nil
+        end
+    end)
+    local function formatTime(seconds)
+        local minutes = math.floor(seconds / 60)
+        local remainingSeconds = seconds % 60
+        return string.format("%02d:%02d", minutes, remainingSeconds)
+    end
+    PlayerGui.GameGui.Screen.Middle.GameEnd:GetPropertyChangedSignal("Visible"):Connect(function()
+        print("[DEBUG] GAME ENDED")
+        if PlayerGui.GameGui.Screen.Middle.GameEnd.Visible then
+            print("[DEBUG] SENDING WEBHOOK")
+            local ui = LocalPlayer.PlayerGui.GameGui.Screen.Middle.GameEnd
+            local victory = ui.Items.Frame.Victory
+            local defeat = ui.Items.Frame.Defeat
+            local isVictory = false
+            local time = "00:00"
+            if startTimeClock > 0 then
+                local elapsedTime = os.time() - startTimeClock
+                time = formatTime(elapsedTime)
+            end
+            if victory.Visible then
+                isVictory = true
+            end
+            local embedColor = isVictory and 5763719 or 15548997
+            local titlePrefix = isVictory and "Garden Tower Defense - 🏆 VICTORY" or "Garden Tower Defense - 💀 DEFEAT"
+            local multipliers = {
+                K = 1e3,
+                M = 1e6,
+                B = 1e9,
+                T = 1e12
+            }
+            local value, suffix = LocalPlayer.leaderstats.Seeds.Value:match("([%d%.]+)(%a)")
+            value = tonumber(value)
+            local number = value * (multipliers[suffix] or 1)
+            local payload = {
+                embeds = {
+                    {
+                        title = titlePrefix,
+                        color = embedColor,
+                        fields = {
+                            {
+                                name = "👤 Player",
+                                value = string.format("||%s (@%s)||", LocalPlayer.DisplayName, LocalPlayer.Name),
+                                inline = false
+                            },
+                            {
+                                name = "🗺️ Map",
+                                value = workspace:GetAttribute("MapName") or "?",
+                                inline = false
+                            },
+                            {
+                                name = "🌱 Seeds",
+                                value = tostring(number),
+                                inline = false
+                            },
+                            {
+                                name = "⏱️ Time",
+                                value = time,
+                                inline = false
+                            },
+                        },
+                        footer = {
+                            text = "Goa Hub • Garden Tower Defense"
+                        },
+                        timestamp = DateTime.now():ToIsoDate()
+                    }
+                }
+            }
+            local jsonData = HttpService:JSONEncode(payload)
+            local success, errorMessage = pcall(function()
+                (syn and syn.request or http_request) {
+                    Url = WEBHOOK_URL,
+                    Method = 'POST',
+                    Headers = {
+                        ['Content-Type'] = 'application/json'
+                    },
+                    Body = jsonData,
+                }
+            end)
+            
+            if not success then
+                warn("[FAILED] SEND WEBHOOK : " .. errorMessage)
+            end
+        end
+    end)
+end
+
+functions.AntiAfk = function(bool)
+    otherToggle.AntiAfk = bool
+    if not bool and not otherToggle.AntiAfk then return end
+    local VirtualUser = game:GetService("VirtualUser")
+    local con
+    con = LocalPlayer.Idled:Connect(function()
+        if not otherToggle.AntiAfk then
+            con:Disconnect()
+            con = nil
+        end
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton1(Vector2.new(0, 0))
+    end)
+end
+
+functions.AutoRestart = function(bool)
+    gameToggle.Restart = bool
+    if not bool then return end
+    local remote = RemoteFunctions:FindFirstChild("RestartGame")
+    local ui = Middle:FindFirstChild("GameEnd")
+    if not remote or not ui then return warn("Tidak ada Remote/UI") end
+    local button = ui.Items.Frame.Actions.Items
+    if button.Visible then
+        firesignal(button.Again.MouseButton1Click)
+    end
+    local con
+    con = ui:GetPropertyChangedSignal("Visible"):Connect(function()
+        if not gameToggle.Restart then
+            con:Disconnect()
+            con = nil
+            return
+        end
+        if ui.Visible then
+            while not button.Visible do
+                task.wait(0.1)
+            end
+            task.wait(2)
+            firesignal(button.Again.MouseButton1Click)
+        end
+    end)
+end
+
+functions.AutoSetSpeed = function(bool)
+    gameToggle.Speed = bool
+    if not bool then return end
+    local remote = RemoteFunctions:FindFirstChild("ChangeTickSpeed")
+    local uiDifficulty = Middle:FindFirstChild("DifficultyVote")
+    local uiEnd = Middle:FindFirstChild("GameEnd")
+    if not uiEnd or not uiDifficulty or not remote then
+        print(remote)
+        print(uiDifficulty)
+        print(uiEnd)
+        print("Remote/UI tidak ada")
+        return
+    end
+    local doneChange = false
+    Options.GameSpeed:OnChanged(function()
+        doneChange = false
+    end)
+    while gameToggle.Speed do
+        if not doneChange and not uiEnd.Visible and not uiDifficulty.Visible then
+            remote:InvokeServer(GameSpeed)
+            doneChange = true
+        end
+        task.wait(0.3)
+    end
+end
+
+functions.AutoSetDifficulty = function(bool)
+    gameToggle.Difficulty = bool
+    if not bool then return warn("Value false") end
+    local remote = RemoteFunctions:FindFirstChild("PlaceDifficultyVote")
+    local ui = Middle:FindFirstChild("DifficultyVote")
+    if not ui or not remote then return print("UI/Remote tidak ada") end
+    if ui.Visible then
+        task.wait(0.2)
+        print("Sudah memicu Remote : " .. Difficulty)
+        remote:InvokeServer(Difficulty)
+    end
+    local con
+    con = ui:GetPropertyChangedSignal("Visible"):Connect(function()
+        if not gameToggle.Difficulty then
+            con:Disconnect()
+            con = nil
+            return
+        end
+        if ui.Visible then
+            task.wait(0.2)
+            print("Sudah memicu Remote : " .. Difficulty)
+            remote:InvokeServer(Difficulty)
+        end
+    end)
+end
+
+functions.AutoSkipWave = function(bool)
+    gameToggle.Skip = bool
+    if not bool then return end
+    local remote = RemoteFunctions.SkipWave
+    while gameToggle.Skip do
+        local round = workspace:GetAttribute("Round") and tonumber(workspace:GetAttribute("Round"))
+        if not round then
+            repeat task.wait(0.1) until workspace:GetAttribute("Round")
+        end
+        if targetSkip[round] or next(targetSkip) == nil then
+            remote:InvokeServer("y")
+        end
+        task.wait(0.3)
+    end
+end
+
+
+-- ==========================================
+-- PENGATURAN VARIABLE & PATH
+-- ==========================================
+
+local function GetCashObjectYielding()
+    local leaderstats = LocalPlayer:WaitForChild("leaderstats", 10)
+    if leaderstats then
+        return leaderstats:WaitForChild("Cash", 10)
+    end
+    return nil
+end
+
+local function EnsureFolderPaths(path)
+    local folders = string.split(path, "/")
+    local currentPath = ""
+    for i, folder in ipairs(folders) do
+        if folder ~= "" then
+            currentPath = currentPath .. folder .. "/"
+            if not isfolder(currentPath) then
+                makefolder(currentPath)
+            end
+        end
+    end
+end
+EnsureFolderPaths(MacroPath)
+
+-- ==========================================
+-- KONVERSI STRING/KOMA KE ANGKA
+-- ==========================================
+local ClientDataHandler = nil
+for _, obj in pairs(getgc(true)) do
+    -- Kita mencari tabel yang memiliki fungsi GetValue dan OnDataUpdate
+    if type(obj) == "table" and rawget(obj, "GetValue") and rawget(obj, "OnDataUpdate") then
+        ClientDataHandler = obj
+        break
+    end
+end
+local function GetPlayerCash()
+    if ClientDataHandler then
+        local currentCash = ClientDataHandler.GetValue("Cash")
+        return type(currentCash) == "number" and currentCash or 0
+    end
+    return 0
+end
+
+local function ParseCash(rawValue)
+    if not rawValue then return 0 end
+    if type(rawValue) == "number" then return rawValue end
+    local str = tostring(rawValue):lower():gsub("[$%s,]", "") -- Hapus tanda $, spasi, dan koma
+    local multiplier = 1
+    if string.find(str, "k") then multiplier = 1000
+    elseif string.find(str, "m") then multiplier = 1000000
+    elseif string.find(str, "b") then multiplier = 1000000000 end
+    local num = tonumber(str) or 10000000
+    return math.floor(num * multiplier)
+end
+
+-- ==========================================
+-- SISTEM DETEKSI PERUBAHAN UANG (DI LUAR HOOK)
+-- ==========================================
+local lastDropAmount = 0
+local lastDropTime = 0
+local recentAction = nil
+
+task.spawn(function()
+    local leaderstats = LocalPlayer:WaitForChild("leaderstats", 30)
+    local cashObj = leaderstats and leaderstats:WaitForChild("Cash", 30)
+    
+    if cashObj then
+        local lastCashValue = ParseCash(cashObj.Value)
+        
+        cashObj.Changed:Connect(function(newCashRaw)
+            local currentCashParsed = ParseCash(newCashRaw)
+            local drop = lastCashValue - currentCashParsed
+            
+            if drop > 0 then
+                lastDropAmount = drop
+                -- [MODIFIKASI]: Mengganti os.clock() dengan waktu server
+                lastDropTime = Workspace:GetServerTimeNow()
+                
+                if recentAction then
+                    recentAction.Price = drop
+                    recentAction = nil
+                end
+            end
+            lastCashValue = currentCashParsed
+        end)
+    end
+end)
+
+-- ==========================================
+-- TRACKER INSTANCE (OPTIMIZED O(1) ANTI-LAG)
+-- ==========================================
+local v4 = nil
+for _, obj in pairs(getgc(true)) do
+    if type(obj) == "table" and rawget(obj, "OnSignal") and rawget(obj, "InstantThread") then
+        v4 = obj
+        break
+    end
+end
+
+-- Key: InstanceID (p1.ID), Value: Object Unit (p1)
+local TrackerInstance = {} 
+
+if v4 then
+    v4.OnSignal("UnitCreated", function(p1)
+        if p1.Data and p1.Data.Owner == game.Players.LocalPlayer then
+            TrackerInstance[p1.ID] = p1
+        end
+    end)
+    v4.OnSignal("UnitRemoved", function(p1)
+        if p1.ID and TrackerInstance[p1.ID] then
+            TrackerInstance[p1.ID] = nil
+        end
+    end)
+else
+    warn("v4 Helper tidak ditemukan, data UnitName dan Cost pada Macro mungkin tidak akurat.")
+end
+
+-- ==========================================
+-- SERIALIZER
+-- ==========================================
+local function SerializeData(data)
+    if type(data) == "table" then
+        local serialized = {}
+        for k, v in pairs(data) do
+            serialized[k] = SerializeData(v)
+        end
+        return serialized
+    elseif typeof(data) == "CFrame" then
+        return {__type = "CFrame", components = {data:GetComponents()}}
+    elseif typeof(data) == "Vector3" then
+        return {__type = "Vector3", x = data.X, y = data.Y, z = data.Z}
+    else
+        return data
+    end
+end
+
+local function DeserializeData(data)
+    if type(data) == "table" then
+        if data.__type == "CFrame" then
+            return CFrame.new(unpack(data.components))
+        elseif data.__type == "Vector3" then
+            return Vector3.new(data.x, data.y, data.z)
+        else
+            local deserialized = {}
+            for k, v in pairs(data) do
+                deserialized[k] = DeserializeData(v)
+            end
+            return deserialized
+        end
+    else
+        return data
+    end
+end
+
+-- ==========================================
+-- SISTEM RECORDING (WORKSPACE SERVER TIME)
+-- ==========================================
+local recordedActions = {}
+local startTime = 0
+local idToIndexRecordMap = {} 
+local macroIndexCounter = 0
+local round = 0
+
+workspace:GetAttributeChangedSignal("Round"):Connect(function()
+    round = tonumber(workspace:GetAttribute("Round"))
+    print("Round Saat ini : ", round)
+    startTime = workspace:GetServerTimeNow()
+end)
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if not macroToggle.Recording or checkcaller() then
+        return oldNamecall(self, ...)
+    end
+
+    if method == "InvokeServer" then
+        if self.Name == "PlaceUnit" then
+            local unitName = args[1]
+            local unitData = args[2]
+
+            local isValid, result = oldNamecall(self, ...)
+
+            if isValid and type(result) == "number" then
+                macroIndexCounter = macroIndexCounter + 1
+                local currentIndex = macroIndexCounter
+                idToIndexRecordMap[result] = currentIndex 
+
+                local actionData = {
+                    Action = "Place",
+                    Time = Workspace:GetServerTimeNow() - startTime,
+                    UnitName = unitName,
+                    UnitData = SerializeData(unitData),
+                    Round = round,
+                    MacroIndex = currentIndex,
+                    Price = 0 
+                }
+                table.insert(recordedActions, actionData)
+
+                -- Menggunakan thread terpisah agar tidak menahan (yield) Namecall yang bisa merusak game
+                task.spawn(function()
+                    local waitTime = 0
+                    -- Tunggu maksimal 2 detik sampai client selesai merender p1
+                    while not TrackerInstance[result] and waitTime < 2 do
+                        task.wait(0.1)
+                        waitTime = waitTime + 0.1
+                    end
+                    
+                    local p1 = TrackerInstance[result]
+                    if p1 and p1.Data then
+                        actionData.Price = p1.Data.Cost or 0
+                    end
+                end)
+            end
+            return isValid, result
+
+        elseif self.Name == "UpgradeUnit" then
+            local unitId = args[1]
+            
+            -- Ekstrak Data Sebelum Server Memproses (Agar mendapat Level & Cost yang akurat)
+            local unitName = "Unknown"
+            local preLevel = 0
+            local upgradeCost = 0
+            
+            local p1 = TrackerInstance[unitId]
+            if p1 then
+                unitName = (p1.ItemData and p1.ItemData.Params) and p1.ItemData.Params.Name or "Unknown"
+                if p1.Data then
+                    preLevel = p1.Data.Level
+                    if p1.Data.Upgrades and p1.Data.Upgrades[preLevel] then
+                        upgradeCost = p1.Data.Upgrades[preLevel].Cost or 0
+                    end
+                end
+            end
+
+            local isValid, err = oldNamecall(self, ...)
+
+            if isValid then
+                local mappedIndex = idToIndexRecordMap[unitId]
+                if mappedIndex then
+                    local actionData = {
+                        Action = "Upgrade",
+                        Time = Workspace:GetServerTimeNow() - startTime,
+                        Round = round,
+                        MacroIndex = mappedIndex,
+                        UnitName = unitName,  -- Ditambahkan UnitName
+                        Level = preLevel,     -- Ditambahkan Level
+                        Price = upgradeCost   -- Diganti dengan Cost Upgrade Akurat
+                    }
+                    table.insert(recordedActions, actionData)
+                end
+            end
+            return isValid, err
+
+        elseif self.Name == "ActivateUnitAbility" then
+            local unitId = args[1]
+            
+            local unitName = "Unknown"
+            local p1 = TrackerInstance[unitId]
+            if p1 and p1.ItemData and p1.ItemData.Params then
+                unitName = p1.ItemData.Params.Name
+            end
+
+            local isValid, result = oldNamecall(self, ...)
+            
+            if isValid then
+                local mappedIndex = idToIndexRecordMap[unitId]
+                if mappedIndex then
+                    local actionData = {
+                        Action = "Ability",
+                        Time = Workspace:GetServerTimeNow() - startTime,
+                        Round = round,
+                        MacroIndex = mappedIndex,
+                        UnitName = unitName, -- Ditambahkan UnitName
+                        Price = 0
+                    }
+                    table.insert(recordedActions, actionData)
+                end
+            end
+            return isValid, result
+
+        elseif self.Name == "SellUnit" then
+            local unitId = args[1]
+            local mappedIndex = idToIndexRecordMap[unitId]
+            
+            local unitName = "Unknown"
+            local p1 = TrackerInstance[unitId]
+            if p1 and p1.ItemData and p1.ItemData.Params then
+                unitName = p1.ItemData.Params.Name
+            end
+            
+            local returnValues = {oldNamecall(self, ...)}
+
+            if mappedIndex then
+                table.insert(recordedActions, {
+                    Action = "Sell",
+                    Time = Workspace:GetServerTimeNow() - startTime,
+                    Round = round,
+                    MacroIndex = mappedIndex,
+                    UnitName = unitName, -- Ditambahkan UnitName
+                    Price = 0
+                })
+            end
+            return unpack(returnValues)
+        end
+    
+    elseif method == "FireServer" then
+        if self.Name == "Entity_ChangeTargetingMode" then
+            local unitId = args[1]
+            local changeTarget = args[2]
+            local mappedIndex = idToIndexRecordMap[unitId]
+            
+            local unitName = "Unknown"
+            local p1 = TrackerInstance[unitId]
+            if p1 and p1.ItemData and p1.ItemData.Params then
+                unitName = p1.ItemData.Params.Name
+            end
+
+            local returnValues = {oldNamecall(self, ...)}
+            
+            if mappedIndex then
+                table.insert(recordedActions, {
+                    Action = "TargetMode",
+                    Time = Workspace:GetServerTimeNow() - startTime,
+                    Round = round,
+                    ChangeTarget = changeTarget,
+                    MacroIndex = mappedIndex,
+                    UnitName = unitName, -- Ditambahkan UnitName
+                    Price = 0
+                })
+            end
+            return unpack(returnValues)
+        end
+    end
+        
+    return oldNamecall(self, ...)
+end)
+
+local function StopRecording()
+    if not macroToggle.Recording then return end
+    macroToggle.Recording = false
+
+    local success, encoded = pcall(function()
+        return HttpService:JSONEncode(recordedActions)
+    end)
+
+    if success then
+        writefile(MacroPath .. MacroFileName, encoded)
+        print("✅ Macro berhasil disimpan ke: " .. MacroPath .. MacroFileName)
+        Toggles.MacroRecord:SetValue(false)
+        macroStatus:SetText("Status : Idle")
+    else
+        warn("❌ Gagal menyimpan Macro (Can't parse JSON).")
+    end
+end
+
+functions.StartRecording = function(bool)
+    macroToggle.Recording = bool
+    if not bool then return end
+    
+    print("⏳ Menunggu StopDifficultyVote...")
+    macroStatus:SetText("Status : Menunggu Match Mulai")
+    
+    local matchStarted = false
+    local remoteTarget = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StopDifficultyVote")
+    
+    local connection = remoteTarget.OnClientEvent:Connect(function()
+        matchStarted = true
+    end)
+    if tonumber(workspace:GetAttribute("Round")) == 1 then
+        matchStarted = true
+    end
+    while not matchStarted do
+        if not macroToggle.Recording then
+            connection:Disconnect()
+            macroStatus:SetText("Status : Idle")
+            return
+        end
+        task.wait(0.05)
+    end
+    connection:Disconnect()
+
+    recordedActions = {}
+    idToIndexRecordMap = {}
+    macroIndexCounter = 0
+    
+    local attrStartTime = Workspace:GetAttribute("GameStartTime")
+    
+    if attrStartTime then
+        startTime = tonumber(attrStartTime) or Workspace:GetServerTimeNow()
+        print("⏺️ Match Dimulai! Perekaman berjalan menggunakan GameStartTime Workspace: " .. startTime)
+    else
+        startTime = Workspace:GetServerTimeNow()
+        print("⏺️ Match Dimulai! Perekaman berjalan menggunakan ServerTime saat ini: " .. startTime)
+    end
+    macroStatus:SetText("Status : Merekam")
+    
+    task.spawn(function()
+        local endGui = LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd")
+        while macroToggle.Recording and not endGui.Visible do
+            task.wait(1)
+        end
+        StopRecording()
+    end)
+end
+
+
+
+
+
+
+
+-- ==========================================
+-- SISTEM PLAY MACRO 
+-- ==========================================
+-- ==========================================
+-- [SISTEM PATHFINDING]: ANTI LAG & INSTANT CANCEL
+-- ==========================================
+local currentPathId = 0 -- Token untuk membatalkan jalan secara instan
+
+local function StopPathfinding()
+    currentPathId = currentPathId + 1 -- Mengubah ID akan membatalkan thread jalan yang sedang aktif
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hum and hrp then
+            hum:MoveTo(hrp.Position) -- Hentikan pergerakan
+        end
+    end
+end
+
+local function StartPathfindingTo(targetPos)
+    if not targetPos then return end
+    currentPathId = currentPathId + 1
+    local thisId = currentPathId
+    
+    task.spawn(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChild("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hum or not hrp or hum.Health <= 0 then return end
+        
+        -- Jika jarak terlalu dekat, tidak perlu membuang FPS untuk kalkulasi pathfinding
+        if (hrp.Position - targetPos).Magnitude < 4 then return end
+        
+        local path = PathfindingService:CreatePath({
+            AgentRadius = 2,
+            AgentHeight = 5,
+            AgentCanJump = true,
+            AgentCanClimb = false,
+            WaypointSpacing = 4 -- Dibuat renggang agar tidak membebani CPU (FPS Friendly)
+        })
+        
+        local success, _ = pcall(function()
+            path:ComputeAsync(hrp.Position, targetPos)
+        end)
+        
+        if success and path.Status == Enum.PathStatus.Success then
+            local waypoints = path:GetWaypoints()
+            for _, waypoint in ipairs(waypoints) do
+                if currentPathId ~= thisId then break end -- Batalkan jika Teleport/Action lain dipicu
+                
+                if waypoint.Action == Enum.PathWaypointAction.Jump then
+                    hum.Jump = true
+                end
+                
+                hum:MoveTo(waypoint.Position)
+                
+                -- Loop kustom pengganti MoveToFinished (Bisa di-break kapan saja secara instan)
+                local timeLimit = os.clock() + 3 -- Maksimal 3 detik per titik untuk mencegah nyangkut
+                while os.clock() < timeLimit do
+                    if currentPathId ~= thisId then return end
+                    if not hrp or not hrp.Parent then return end
+                    
+                    -- Jarak X dan Z (Abaikan tinggi Y)
+                    local dist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(waypoint.Position.X, 0, waypoint.Position.Z)).Magnitude
+                    if dist < 2 then
+                        break -- Sudah sampai titik tujuan sementara, lanjut ke titik berikutnya
+                    end
+                    task.wait(0.05)
+                end
+            end
+        end
+    end)
+end
+
+-- ==========================================
+-- [FUNGSI PENCARI UNIT]: MENCARI BERDASARKAN ATTRIBUTE "ID"
+-- ==========================================
+local function GetUnitModel(id)
+    local map = workspace:FindFirstChild("Map")
+    local entities = map and map:FindFirstChild("Entities")
+    if entities then
+        for _, entity in ipairs(entities:GetChildren()) do
+            if entity:IsA("Model") and entity:GetAttribute("ID") == id then
+                return entity
+            end
+        end
+    end
+    return nil
+end
+
+-- ==========================================
+-- [BYPASS 1]: VIM DEVICE-SPECIFIC (ANTI UI-GLITCH)
+-- ==========================================
+local function SafeVIM_ClickTopLeft()
+    pcall(function()
+        local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+        local randomX = math.random(5, 20)
+        local randomY = math.random(5, 20)
+
+        if isMobile then
+            if type(VirtualInputManager.SendTouchEvent) == "function" or VirtualInputManager.SendTouchEvent then
+                VirtualInputManager:SendTouchEvent(randomX, randomY, 0, game)
+                task.wait(math.random(3, 8) / 100) 
+                VirtualInputManager:SendTouchEvent(randomX, randomY, 2, game)
+            end
+        else
+            if type(VirtualInputManager.SendMouseButtonEvent) == "function" or VirtualInputManager.SendMouseButtonEvent then
+                VirtualInputManager:SendMouseButtonEvent(randomX, randomY, 0, true, game, 1)
+                task.wait(math.random(3, 8) / 100) 
+                VirtualInputManager:SendMouseButtonEvent(randomX, randomY, 0, false, game, 1)
+            end
+        end
+    end)
+end
+
+local function SafeVIM_RandomKeyPress()
+    pcall(function()
+        local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+        if isMobile then return end 
+        
+        if type(VirtualInputManager.SendKeyEvent) == "function" or VirtualInputManager.SendKeyEvent then
+            local safeKeys = {Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.O, Enum.KeyCode.P, Enum.KeyCode.Z, Enum.KeyCode.X}
+            local randomKey = safeKeys[math.random(1, #safeKeys)]
+            
+            VirtualInputManager:SendKeyEvent(true, randomKey, false, game)
+            task.wait(math.random(3, 8) / 100)
+            VirtualInputManager:SendKeyEvent(false, randomKey, false, game)
+        end
+    end)
+end
+
+-- ==========================================
+-- [BYPASS 2]: MICRO-OFFSET (0.01 STUDS)
+-- ==========================================
+local function ApplyMicroOffset(originalData)
+    local newData = {}
+    for k, v in pairs(originalData) do newData[k] = v end
+
+    if newData.Position and typeof(newData.Position) == "Vector3" then
+        local offsetX = (math.random() - 0.5) * 0.05
+        local offsetZ = (math.random() - 0.5) * 0.05
+        local newPos = newData.Position + Vector3.new(offsetX, 0, offsetZ)
+        
+        newData.Position = newPos
+
+        if newData.CF and typeof(newData.CF) == "CFrame" then
+            newData.CF = newData.CF.Rotation + newPos
+        end
+    end
+    return newData
+end
+
+-- ==========================================
+-- [BYPASS 3]: KAMERA TWEEN & TELEPORT
+-- ==========================================
+local function PanCameraSmoothly()
+    pcall(function()
+        local cam = workspace.CurrentCamera
+        if cam then
+            local randomAngleX = math.rad(math.random(-15, 15))
+            local randomAngleY = math.rad(math.random(-15, 15))
+            
+            local targetCFrame = cam.CFrame * CFrame.Angles(randomAngleX, randomAngleY, 0)
+            local tweenInfo = TweenInfo.new(math.random(15, 35) / 10, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            TweenService:Create(cam, tweenInfo, {CFrame = targetCFrame}):Play()
+        end
+    end)
+end
+
+local function TeleportWithRandomJump(targetPos)
+    StopPathfinding() -- Batalkan pergerakan pathfind sebelum melompat teleport
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        
+        if hrp and hum and hum.Health > 0 then
+            local offsetX = (math.random() - 0.5) * 0.4
+            local offsetZ = (math.random() - 0.5) * 0.4
+            
+            hrp.CFrame = CFrame.new(targetPos + Vector3.new(offsetX, 5, offsetZ))
+            task.wait(0.15) 
+            
+            if math.random(1, 10) <= 4 then
+                if hum:GetState() ~= Enum.HumanoidStateType.Freefall then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                    hum.Jump = true
+                end
+            end
+        end
+    end
+end
+
+-- ==========================================
+-- [BYPASS 4]: BERJALAN KE ARAH UNIT 
+-- ==========================================
+local function WalkToRandomPlacedUnit(indexMap)
+    pcall(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChild("Humanoid")
+        if not hum or hum.Health <= 0 then return end
+        
+        local validIds = {}
+        for _, id in pairs(indexMap) do table.insert(validIds, id) end
+        if #validIds == 0 then return end
+        
+        local randomId = validIds[math.random(1, #validIds)]
+        local unitModel = GetUnitModel(randomId)
+        
+        if unitModel and unitModel.PrimaryPart then
+            local offsetX = (math.random() > 0.5 and 1 or -1) * (math.random(30, 50) / 10)
+            local offsetZ = (math.random() > 0.5 and 1 or -1) * (math.random(30, 50) / 10)
+            local targetPos = unitModel.PrimaryPart.Position + Vector3.new(offsetX, 0, offsetZ)
+            
+            hum:MoveTo(targetPos)
+        end
+    end)
+end
+
+-- ==========================================
+-- SISTEM PLAY MACRO 
+-- ==========================================
+functions.PlayMacro = function(bool)
+    macroToggle.Play = bool
+    if not bool then 
+        macroStatus:SetText("Status : Idle")
+        return 
+    end
+    
+    local fullPath = MacroPath .. MacroFileName
+    repeat task.wait() until isfile(fullPath)
+    if not isfile(fullPath) then
+        warn("❌ File Macro tidak ditemukan.")
+        macroToggle.Play = false
+        macroStatus:SetText("Status : Idle")
+        return
+    end
+
+    local fileContent = readfile(fullPath)
+    local success, decodedActions = pcall(function() return HttpService:JSONDecode(fileContent) end)
+    
+    if not success or type(decodedActions) ~= "table" then
+        warn("❌ Gagal membaca Macro: File JSON korup.")
+        macroToggle.Play = false
+        macroStatus:SetText("Status : Idle")
+        return
+    end
+
+    macroStatus:SetText("Status : Waiting End Game")
+    
+    local matchStarted = false
+    local remoteTarget = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StopDifficultyVote")
+    
+    local connection = remoteTarget.OnClientEvent:Connect(function() matchStarted = true end)
+    
+    local connectionEnd
+    pcall(function()
+        connectionEnd = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("ShowGameEnd").OnClientEvent:Connect(function() matchStarted = false end)
+    end)
+    
+    local guiEnd = nil
+    pcall(function() guiEnd = LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd") end)
+    if guiEnd and not guiEnd.Visible and tonumber(workspace:GetAttribute("Round")) <= 1 then
+        matchStarted = true
+    end
+    while not matchStarted or (guiEnd and guiEnd.Visible) or not workspace:GetAttribute("GameStartTime") do
+        if not macroToggle.Play then
+            connection:Disconnect()
+            if connectionEnd then connectionEnd:Disconnect() end
+            macroStatus:SetText("Status : Idle")
+            return
+        end
+        task.wait()
+    end
+
+    macroStatus:SetText("Status : Starting Macro")
+
+    task.spawn(function()
+        pcall(function()
+            if workspace:GetAttribute("GameStartTime") then
+                startTime = tonumber(workspace:GetAttribute("GameStartTime"))
+            else
+                startTime = workspace:GetServerTimeNow()
+            end
+        end)
+        pcall(function()
+            for _, conn in pairs(getconnections(LocalPlayer.Idled)) do conn:Disable() end
+        end)
+
+        task.spawn(function()
+            while macroToggle.Play do
+                task.wait(math.random(60, 120))
+                if not matchStarted then break end
+                SafeVIM_ClickTopLeft()
+            end
+        end)
+
+        task.spawn(function()
+            while macroToggle.Play do
+                task.wait(math.random(120, 240))
+                if not matchStarted then break end
+                SafeVIM_RandomKeyPress()
+            end
+        end)
+    end)
+    
+    local playStartTime = os.clock() 
+    local indexToNewIdPlayMap = {} 
+    local CashObj = GetCashObjectYielding()
+
+    if not CashObj then
+        macroToggle.Play = false
+        if connection then connection:Disconnect() end
+        if connectionEnd then connectionEnd:Disconnect() end
+        return
+    end
+
+    for _, actionData in ipairs(decodedActions) do
+        local function IsGameClosed()
+            local endGui = nil
+            pcall(function() endGui = LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd") end)
+            return not macroToggle.Play or not matchStarted or (endGui and endGui.Visible) or not workspace:GetAttribute("GameStartTime")
+        end
+
+        if IsGameClosed() then break end
+        
+        local shouldExecute = true
+
+        if shouldExecute then
+            -- [1] TENTUKAN TARGET JALAN SEBELUM MENUNGGU WAKTU/UANG
+            local targetWalkPos = nil
+            if actionData.Action == "Place" then
+                pcall(function()
+                    local deserializedData = DeserializeData(actionData.UnitData)
+                    if deserializedData and deserializedData.Position then
+                        targetWalkPos = deserializedData.Position
+                    end
+                end)
+            elseif actionData.Action == "Upgrade" or actionData.Action == "Sell" or actionData.Action == "Ability" or actionData.Action == "TargetMode" then
+                local unitId = indexToNewIdPlayMap[actionData.MacroIndex]
+                if unitId then
+                    local unitModel = GetUnitModel(unitId)
+                    if unitModel and unitModel.PrimaryPart then
+                        targetWalkPos = unitModel.PrimaryPart.Position
+                    end
+                end
+            end
+            
+            -- [2] MULAI JALAN PATHFINDING DI BACKGROUND (NON-BLOCKING)
+            if targetWalkPos then
+                StartPathfindingTo(targetWalkPos)
+            end
+
+            -- [3] PROSES MENUNGGU WAKTU & RONDE (Loop Random Walk dihapus karena sudah diganti Pathfinding)
+            if not InstantMode and actionData.Time or actionData.Action == "Sell" or actionData.Action == "Ability" or actionData.Action == "TargetMode" then
+                local targetTime = startTime + actionData.Time
+                while tonumber(workspace:GetAttribute("Round")) ~= actionData.Round do
+                    if IsGameClosed() or not macroToggle.Play then 
+                        if connection then connection:Disconnect() end
+                        if connectionEnd then connectionEnd:Disconnect() end
+                        macroStatus:SetText("Status : Idle")
+                        break 
+                    end
+                    RunService.Heartbeat:Wait()
+                end
+                while workspace:GetServerTimeNow() < targetTime do
+                    if IsGameClosed() or not macroToggle.Play then 
+                        if connection then connection:Disconnect() end
+                        if connectionEnd then connectionEnd:Disconnect() end
+                        macroStatus:SetText("Status : Idle")
+                        break 
+                    end
+                    RunService.Heartbeat:Wait()
+                end
+                task.wait(math.random(20, 30) / 1000)
+            end
+
+            -- [4] PROSES MENUNGGU UANG (Loop Random Walk dihapus karena sudah diganti Pathfinding)
+            if actionData.Price and actionData.Price > 0 then
+                if GetPlayerCash() < actionData.Price then
+                    while GetPlayerCash() < actionData.Price do
+                        macroStatus:SetText("Status : " .. tostring(GetPlayerCash()) .. "/" .. tostring(actionData.Price) .. " "  .. actionData.UnitName .. " (" .. tostring(actionData.MacroIndex) .. ")")
+                        if IsGameClosed() or not macroToggle.Play then
+                            if connection then connection:Disconnect() end
+                            if connectionEnd then connectionEnd:Disconnect() end
+                            macroStatus:SetText("Status : Idle")
+                            break 
+                        end
+                        task.wait(0.05) 
+                    end
+                    task.wait(math.random(15, 30) / 100)
+                end
+            end
+            
+            -- [5] WAKTU DAN UANG TERCAPAI, BATALKAN JALAN UNTUK EKSEKUSI
+            StopPathfinding()
+
+            if IsGameClosed() then break end
+
+            local remotes = ReplicatedStorage:FindFirstChild("RemoteFunctions")
+            if remotes then
+                if actionData.Action == "Place" then
+                    macroStatus:SetText("Status : " .. actionData.Action .. " " .. actionData.UnitName)
+                    local remote = remotes:FindFirstChild("PlaceUnit")
+                    if remote then
+                        local deserializedData = DeserializeData(actionData.UnitData)
+                        
+                        if deserializedData.Position then
+                            TeleportWithRandomJump(deserializedData.Position)
+                            task.wait(0.1) 
+                        end
+
+                        local successAction = false
+                        local fetchedId = nil
+                        
+                        while not successAction do
+                            if IsGameClosed() or not macroToggle.Play then break end
+                            
+                            local spoofedData = ApplyMicroOffset(deserializedData)
+                            
+                            local isValid, result = remote:InvokeServer(actionData.UnitName, spoofedData)
+                            if isValid == true and type(result) == "number" then
+                                successAction = true
+                                fetchedId = result
+                                break 
+                            else
+                                task.wait(0.5)
+                            end
+                        end
+
+                        if successAction then
+                            indexToNewIdPlayMap[actionData.MacroIndex] = fetchedId
+                        end
+                    end
+
+                elseif actionData.Action == "Upgrade" then
+                    macroStatus:SetText("Status : Upgrading " .. actionData.UnitName .. " Lvl. " .. tostring(actionData.Level))
+                    local newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                    if not newId then
+                        for retryCount = 1, 20 do
+                            if IsGameClosed() then break end
+                            newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                            if newId then
+                                break
+                            else
+                                task.wait(0.1)
+                            end
+                        end
+                    end
+                    local remote = remotes:FindFirstChild("UpgradeUnit")
+                    if remote and newId then
+                        task.wait(0.2)
+                        local successAction = false
+                        for retryCount = 1, 40 do
+                            if IsGameClosed() or tonumber(workspace:GetAttribute("Round")) > tonumber(actionData.Round) then break end
+                            newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                            local isValid = remote:InvokeServer(newId)
+                            if isValid == true then
+                                successAction = true
+                                break
+                            else
+                                task.wait(0.5)
+                            end
+                        end
+                        if not successAction then
+                            macroStatus:SetText("Status : Failed " .. actionData.Action .. " (" .. tostring(actionData.MacroIndex) .. ")")
+                        end
+                    end
+                elseif actionData.Action == "Ability" then
+                    macroStatus:SetText("Status : Activing Ability " .. actionData.UnitName)
+                    local newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                    if not newId then
+                        for retryCount = 1, 20 do
+                            if IsGameClosed() or not macroToggle.Play then break end
+                            newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                            if newId then
+                                break
+                            else
+                                task.wait(0.1)
+                            end
+                        end
+                    end
+                    local remote = remotes:FindFirstChild("ActivateUnitAbility")
+                    if remote and newId then
+
+                        local successAction = false
+                        for retryCount = 1, 20 do
+                            if IsGameClosed() then break end
+                            local isValid = remote:InvokeServer(newId)
+                            if isValid == true then
+                                successAction = true
+                                break
+                            else
+                                task.wait(1)
+                            end
+                        end
+                    end
+
+                elseif actionData.Action == "Sell" then
+                    macroStatus:SetText("Status : Selling " .. actionData.UnitName)
+                    local newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                    local remote = remotes:FindFirstChild("SellUnit")
+                    if remote and newId then
+                        remote:InvokeServer(newId)
+                    end
+                    
+                elseif actionData.Action == "TargetMode" then
+                    macroStatus:SetText("Status : Changing Target Of" .. actionData.UnitName)
+                    local newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                    if not newId then
+                        for retryCount = 1, 20 do
+                            if IsGameClosed() then break end
+                            newId = indexToNewIdPlayMap[actionData.MacroIndex]
+                            if newId then
+                                break
+                            else
+                                task.wait(0.1)
+                            end
+                        end
+                    end
+                    local targetMode = actionData.ChangeTarget
+                    local unitEntity = nil
+                    local unit_base = require(unitBasePath)
+                    for _, obj in pairs(getgc(true)) do
+                        if type(obj) == "table" and rawget(obj, "ID") == newId and rawget(obj, "Data") then
+                            unitEntity = obj
+                            if rawget(obj.Data, "TargetingMode") then
+                                unitEntity = obj
+                                break
+                            end
+                        end
+                    end
+                    if unitEntity then
+                        unit_base.ChangeTargetingMode(unitEntity, targetMode)
+                    end
+                end
+            end
+        end
+    end
+    
+    if connection then connection:Disconnect() end
+    if connectionEnd then connectionEnd:Disconnect() end
+
+    macroStatus:SetText("Status : Waiting End Game")
+    
+    while macroToggle.Play do
+        local isGameOver = false
+        pcall(function()
+            local endGui = LocalPlayer.PlayerGui.GameGui.Screen.Middle:FindFirstChild("GameEnd")
+            if (endGui and endGui.Visible) or not workspace:GetAttribute("GameStartTime") or not matchStarted then
+                isGameOver = true
+            end
+        end)
+        if isGameOver then break end
+        
+        -- Fungsi random walk saat di penghujung ronde dibiarkan (seolah player patroli)
+        if math.random(1, 3) == 1 then
+            WalkToRandomPlacedUnit(indexToNewIdPlayMap)
+            PanCameraSmoothly()
+        end
+        
+        task.wait(math.random(15, 30) / 10)
+    end
+    
+    if not macroToggle.Play then 
+        macroStatus:SetText("Status : Idle")
+        return 
+    end
+
+    print("🔄 Memulai ulang Macro...")
+    task.wait(math.random(25, 45) / 10)
+    
+    task.defer(function()
+        functions.PlayMacro(true)
+    end)
+end
+
